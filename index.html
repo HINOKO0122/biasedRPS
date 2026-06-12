@@ -2,116 +2,127 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>偏りじゃんけん - 遺伝的アルゴリズム学習シミュレーター</title>
+    <title>偏りじゃんけん - 相手を凌駕するAI (Ver.3)</title>
     <style>
         body { font-family: sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
-        h1, h2 { color: #2c3e50; }
+        h1, h2, h3 { color: #2c3e50; margin-top: 10px; }
         .container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .panel { flex: 1; min-width: 300px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        button { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 5px 0; }
+        .panel { flex: 1; min-width: 320px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        button { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 5px 2px; }
         button:hover { background: #2980b9; }
-        textarea { width: 100%; height: 100px; font-family: monospace; font-size: 12px; box-sizing: border-box; margin-top: 5px; }
-        .status { font-weight: bold; margin-top: 10px; color: #e67e22; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f2f2f2; }
+        button.active { background: #e74c3c; }
+        button.active:hover { background: #c0392b; }
+        textarea { width: 100%; height: 80px; font-family: monospace; font-size: 11px; box-sizing: border-box; }
+        .status { font-weight: bold; font-size: 1.1em; color: #e67e22; margin: 10px 0; }
+        .game-box { background: #ecf0f1; padding: 15px; border-radius: 6px; margin-top: 10px; }
+        .card-btn { background: #2ecc71; font-size: 16px; padding: 12px 20px; }
+        .card-btn:hover { background: #27ae60; }
+        .log-area { font-family: monospace; background: #2c3e50; color: #fff; padding: 10px; height: 160px; overflow-y: auto; border-radius: 4px; font-size: 12px; margin-top: 10px; }
+        .highlight { color: #e74c3c; font-weight: bold; }
     </style>
 </head>
 <body>
 
-    <h1>偏りじゃんけん AI学習シミュレーター</h1>
-    <p>遺伝的アルゴリズム（GA）を用いて、「偏りじゃんけん」の最適な戦略を学習させます。</p>
+    <h1>偏りじゃんけん AI研究機関 (Ver.3)</h1>
+    <p><strong>「相手より総ポイント数が多くなること」</strong>のみを至上命題として遺伝したAIです。</p>
 
     <div class="container">
         <div class="panel">
-            <h2>シミュレーション制御</h2>
-            <p>世代交代を繰り返してAIを賢くします。</p>
-            <label>世代数: <input type="number" id="generations" value="50" min="1" style="width:60px;"></label><br><br>
-            <button onclick="runEvolution()">学習を実行（世代交代）</button>
-            <div id="ga-status" class="status">未実行</div>
+            <h2>🧬 遺伝的アルゴリズム（対戦相手圧倒モード）</h2>
+            <p>人間が止めない限りバックグラウンドで無限に学習します。</p>
             
-            <h3>現在の最高適応度（勝率ベースのスコア）</h3>
-            <div id="best-score">-</div>
+            <button id="loop-btn" onclick="toggleEvolutionLoop()">自動学習（放置モード）を開始</button>
+            
+            <div class="status">
+                現在のステータス: <span id="ga-status">停止中</span><br>
+                経過世代数: <span id="ga-generation">0</span> 世代<br>
+                AIの平均点数差 (対ランダム): <span id="best-score">0.00</span> pt差で勝利
+            </div>
+            <p style="font-size:12px; color:#666;">※評価基準：1ゲーム（10バトル）終了時の「自分のポイント − 相手のポイント」の最大化。</p>
         </div>
 
         <div class="panel">
-            <h2>戦略のインポート / エクスポート</h2>
-            
-            <h3>プレイヤーA (学習・エクスポート用)</h3>
-            <button onclick="exportStrategy('A')">現在の最強戦略をエクスポート</button>
-            <textarea id="json-A" placeholder="ここに戦略データ(JSON)が出力されます"></textarea>
-            <button onclick="importStrategy('A')">プレイヤーAにインポート</button>
-
-            <h3>プレイヤーB (対戦・検証用)</h3>
-            <textarea id="json-B" placeholder="ここにJSONをペーストしてインポートできます"></textarea>
-            <button onclick="importStrategy('B')">プレイヤーBにインポート</button>
-            <button onclick="resetPlayerB()">プレイヤーBを初期化（ランダム）</button>
-            <div id="import-status" style="color: green; margin-top: 5px;"></div>
+            <h2>💾 戦略データの搬入・搬出</h2>
+            <button onclick="exportStrategy()">現在の最強AIデータを取得</button>
+            <textarea id="json-area" placeholder="ここにJSONデータが出力・入力されます"></textarea>
+            <button onclick="importStrategy('A')">プレイヤーA(学習側)に適用</button>
+            <button onclick="importStrategy('B')">プレイヤーB(仮想敵)に適用</button>
+            <div id="import-msg" style="color:green; font-weight:bold; margin-top:5px;"></div>
         </div>
     </div>
 
-    <div class="panel" style="margin-top:20px;">
-        <h2>現在のプレイヤーA vs プレイヤーB テストマッチ</h2>
-        <p>現在のAの最強個体と、現在のB（インポートした戦略 or ランダム）を1000ゲーム（1ゲーム=10バトル）対戦させて実力を測ります。</p>
-        <button onclick="testMatch()">テストマッチを実行</button>
-        <div id="match-result" style="margin-top: 10px; white-space: pre-line; font-family: monospace;"></div>
+    <div class="panel">
+        <h2>🎮 プレイヤー対戦モード (あなた vs 「点数差で勝つ」最強AI)</h2>
+        <p>1ゲーム（10バトル制）のガチンコ勝負です。AIはあなたをポイント差で引き離しにかかります。</p>
+        
+        <button id="start-game-btn" onclick="startHumanGame()">対戦スタート (ゲームを初期化)</button>
+        
+        <div id="game-ui" class="game-box" style="display:none;">
+            <h3>バトル <span id="b-num">1</span> / 10</h3>
+            <p><strong>あなたの手札:</strong> <span id="p-hand">--</span></p>
+            <p><strong>現在の勝敗状況 (3手先取制):</strong> あなた <span id="p-wins">0</span> 勝 - AI <span id="ai-wins">0</span> 勝</p>
+            <p id="battle-status" style="color:#d35400; font-weight:bold;"></p>
+
+            <div id="action-phase" style="display:none;">
+                <p>出すカードを選んでください：</p>
+                <div id="card-buttons"></div>
+            </div>
+
+            <div id="abort-phase" style="display:none;">
+                <p class="highlight">⚠️ 3手が終了しました。このまま5手目まで【続ける】か、ポイント-1で【撤退する】か選べます。</p>
+                <button onclick="humanDecideAbort(true)">🔥 試合を続ける</button>
+                <button onclick="humanDecideAbort(false)" style="background:#e74c3c;">🏳️ 撤退する (-1pt)</button>
+            </div>
+
+            <div style="margin-top:15px; font-size:16px;">
+                <strong>現在のトータルスコア:</strong> あなた <span id="total-p-score">0</span> pt vs AI <span id="total-ai-score">0</span> pt 
+                (<span id="score-diff" style="font-weight:bold;">0</span>)
+            </div>
+        </div>
+
+        <h3>対戦実況ログ</h3>
+        <div id="log" class="log-area">「対戦スタート」を押すとここにバトルの詳細が表示されます。</div>
     </div>
 
 <script>
-// --- ゲームの基本定義 ---
-const HANDS = [0, 1, 2]; // 0: ぐー, 1: ちょき, 2: ぱー
+// --- ゲームルール設定 ---
 const HAND_NAMES = ["グー", "チョキ", "パー"];
 
-// 勝敗判定: 1=win, -1=lose, 0=draw (自分視点)
 function judge(h1, h2) {
     if (h1 === h2) return 0;
     if ((h1 === 0 && h2 === 1) || (h1 === 1 && h2 === 2) || (h1 === 2 && h2 === 0)) return 1;
     return -1;
 }
 
-// --- AI（遺伝子）のクラス設計 ---
+// --- AI構造設計 ---
 class Strategy {
     constructor() {
-        // 遺伝子1: 3手目終了時、自分の勝利数(0,1,2,3)に応じた「継続確率」(0.0〜1.0)
-        // 初期値はすべて50%
-        this.continueThreshold = [0.5, 0.5, 0.5, 0.5]; 
-
-        // 遺伝子2: カードを出す時の重み（手札にあるもののうち、どれを優先するか）
-        // 状況ごとに「グー、チョキ、パー」の出しやすさの重みを持つ
-        // 状況の簡略化：[直前の相手の手(3種 + 最初は3)][自分の残り手札の中で一番多い枚数(1,2,3)] = 12状態
+        this.continueThreshold = [0.5, 0.5, 0.5, 0.5]; // 0〜3勝時の継続確率
         this.cardWeights = {};
-        for (let opLast = 0; opLast <= 3; opLast++) { // 3は「まだ相手が出していない」
+        for (let opLast = 0; opLast <= 3; opLast++) {
             this.cardWeights[opLast] = {};
             for (let maxCount = 1; maxCount <= 3; maxCount++) {
-                this.cardWeights[opLast][maxCount] = [1.0, 1.0, 1.0]; // 初期重み
+                this.cardWeights[opLast][maxCount] = [1.0, 1.0, 1.0];
             }
         }
     }
-
-    // クローン（子孫を作る用）
     clone() {
         let child = new Strategy();
         child.continueThreshold = [...this.continueThreshold];
         for (let o in this.cardWeights) {
-            for (let m in this.cardWeights[o]) {
-                child.cardWeights[o][m] = [...this.cardWeights[o][m]];
-            }
+            for (let m in this.cardWeights[o]) child.cardWeights[o][m] = [...this.cardWeights[o][m]];
         }
         return child;
     }
-
-    // 突然変異
-    mutate(rate = 0.1) {
-        // 継続確率の変異
+    mutate(rate = 0.15) {
         for (let i = 0; i < 4; i++) {
-            if (Math.random() < rate) this.continueThreshold[i] = Math.min(1, Math.max(0, this.continueThreshold[i] + (Math.random() - 0.5) * 0.3));
+            if (Math.random() < rate) this.continueThreshold[i] = Math.min(1, Math.max(0, this.continueThreshold[i] + (Math.random() - 0.5) * 0.4));
         }
-        // カード重みの変異
         for (let o in this.cardWeights) {
             for (let m in this.cardWeights[o]) {
                 if (Math.random() < rate) {
                     for (let h = 0; h < 3; h++) {
-                        this.cardWeights[o][m][h] = Math.max(0.1, this.cardWeights[o][m][h] + (Math.random() - 0.5) * 0.5);
+                        this.cardWeights[o][m][h] = Math.max(0.1, this.cardWeights[o][m][h] + (Math.random() - 0.5) * 0.6);
                     }
                 }
             }
@@ -119,83 +130,57 @@ class Strategy {
     }
 }
 
-// --- シミュレーション管理環境 ---
+// --- GA管理変数 ---
 let populationSize = 40;
 let population = Array.from({length: populationSize}, () => new Strategy());
 let bestStrategyA = population[0];
-let strategyB = new Strategy(); // 初期はランダムな戦略
+let strategyB = new Strategy(); 
 
-// 1バトルの実行
-function playBattle(stratA, stratB) {
-    // デッキ選択（ランダムに2枚追加される手を決める）
-    let deckTypeA = Math.floor(Math.random() * 3);
-    let deckTypeB = Math.floor(Math.random() * 3);
+let generationCount = 0;
+let isEvolving = false;
+let evolutionTimer = null;
 
-    let handA = [0, 1, 2]; handA.push(deckTypeA, deckTypeA);
-    let handB = [0, 1, 2]; handB.push(deckTypeB, deckTypeB);
+function playSimulationBattle(stratA, stratB) {
+    let deckA = Math.floor(Math.random() * 3);
+    let deckB = Math.floor(Math.random() * 3);
+    let handA = [0, 1, 2, deckA, deckA];
+    let handB = [0, 1, 2, deckB, deckB];
+    let histA = [], histB = [];
+    let winsA = 0, winsB = 0;
 
-    let historyA = [];
-    let historyB = [];
-    let winsA = 0;
-    let winsB = 0;
-
-    // 5回勝負
     for (let round = 0; round < 5; round++) {
-        // 3手目終了後の継続判断
         if (round === 3) {
-            let actA = Math.random() < stratA.continueThreshold[winsA]; // true=継続
-            let actB = Math.random() < stratB.continueThreshold[winsB]; // true=継続
-            if (!actA || !actB) {
-                return { pointsA: -1, pointsB: -1 }; // どちらかがやめたら両方-1
+            if (Math.random() > stratA.continueThreshold[winsA] || Math.random() > stratB.continueThreshold[winsB]) {
+                return { pA: -1, pB: -1 };
             }
         }
-
-        // カードの選択
-        let cardA = chooseCard(stratA, handA, historyB);
-        let cardB = chooseCard(stratB, handB, historyA);
-
-        // 手札から消費
-        handA.splice(handA.indexOf(cardA), 1);
-        handB.splice(handB.indexOf(cardB), 1);
-
-        historyA.push(cardA);
-        historyB.push(cardB);
-
-        let res = judge(cardA, cardB);
+        let cA = chooseAICard(stratA, handA, histB);
+        let cB = chooseAICard(stratB, handB, histA);
+        handA.splice(handA.indexOf(cA), 1);
+        handB.splice(handB.indexOf(cB), 1);
+        histA.push(cA); histB.push(cB);
+        let res = judge(cA, cB);
         if (res === 1) winsA++;
         if (res === -1) winsB++;
     }
-
-    // 5枚出し切った場合のポイント計算
-    if (winsA > winsB) return { pointsA: 2, pointsB: -2 };
-    if (winsB > winsA) return { pointsA: -2, pointsB: 2 };
-    return { pointsA: 0, pointsB: 0 };
+    if (winsA > winsB) return { pA: 2, pB: -2 };
+    if (winsB > winsA) return { pA: -2, pB: 2 };
+    return { pA: 0, pB: 0 };
 }
 
-// 戦略と手札に基づいてカードを選ぶヘルパー
-function chooseCard(strat, myHand, opHistory) {
+function chooseAICard(strat, myHand, opHistory) {
     let opLast = opHistory.length === 0 ? 3 : opHistory[opHistory.length - 1];
-    
-    // 手札の偏り（最大枚数）をカウント
     let counts = [0, 0, 0];
     myHand.forEach(h => counts[h]++);
     let maxCount = Math.max(...counts);
-
     let weights = strat.cardWeights[opLast][maxCount];
     
-    // 現在手札にあるカードだけの有効な重みを計算
     let validWeights = [0, 0, 0];
-    let totalWeight = 0;
-    for(let h of myHand) {
-        validWeights[h] += weights[h];
-    }
-    totalWeight = validWeights.reduce((a,b)=>a+b, 0);
+    for(let h of myHand) validWeights[h] += weights[h];
+    let totalWeight = validWeights.reduce((a,b)=>a+b, 0);
 
-    // 万が一重みが0の場合は手札からランダム
     if (totalWeight === 0) return myHand[Math.floor(Math.random() * myHand.length)];
-
-    let rand = Math.random() * totalWeight;
-    let sum = 0;
+    let rand = Math.random() * totalWeight, sum = 0;
     for (let i = 0; i < 3; i++) {
         sum += validWeights[i];
         if (rand <= sum) return i;
@@ -203,152 +188,280 @@ function chooseCard(strat, myHand, opHistory) {
     return myHand[0];
 }
 
-// 1ゲーム（10バトル）を対戦させて、Aの最終獲得ポイントを返す
-function play10Battles(stratA, stratB) {
-    let totalA = 0;
-    for (let b = 0; b < 10; b++) {
-        let res = playBattle(stratA, stratB);
-        totalA += res.pointsA;
-    }
-    return totalA;
-}
+// 世代交代（相手との点数差を最大化するように遺伝）
+function evolveOneGeneration() {
+    let fitness = new Array(populationSize).fill(0);
 
-// --- 遺伝的アルゴリズム（GA）の実行 ---
-function runEvolution() {
-    let gens = parseInt(document.getElementById('generations').value);
-    document.getElementById('ga-status').innerText = "計算中...";
-
-    setTimeout(() => {
-        for (let g = 0; g < gens; g++) {
-            let fitness = new Array(populationSize).fill(0);
-
-            // 総当たり、またはランダムな相手（現在のプール内＋相手の固定戦略B）と対戦して評価
-            for (let i = 0; i < populationSize; i++) {
-                // 1個体あたり、プール内の他の個体やBと複数回対戦して実力を平均化
-                for (let k = 0; k < 10; k++) {
-                    let opponent = (Math.random() < 0.3) ? strategyB : population[Math.floor(Math.random() * populationSize)];
-                    fitness[i] += play10Battles(population[i], opponent);
-                }
+    for (let i = 0; i < populationSize; i++) {
+        for (let k = 0; k < 10; k++) {
+            let opponent = (Math.random() < 0.3) ? strategyB : population[Math.floor(Math.random() * populationSize)];
+            for (let b = 0; b < 10; b++) {
+                let res = playSimulationBattle(population[i], opponent);
+                // ★【ここを変更】総ポイント数ではなく、「自分と相手のポイント差」を遺伝の評価基準にする
+                fitness[i] += (res.pA - res.pB); 
             }
-
-            // 成績順にソート
-            let indexedFitness = fitness.map((f, idx) => ({ idx, f }));
-            indexedFitness.sort((a, b) => b.f - a.f);
-
-            // 次世代のプール作成 (エリート選択 + ルーレット選択)
-            let nextPopulation = [];
-            
-            // 上位2個体はそのまま残す（エリート保存）
-            nextPopulation.push(population[indexedFitness[0].idx].clone());
-            nextPopulation.push(population[indexedFitness[1].idx].clone());
-
-            // 残りを次世代で埋める
-            while (nextPopulation.length < populationSize) {
-                // 簡易的なトーナメント選択（ランダムに2つ選んで強い方を親にする）
-                let p1 = population[indexedFitness[Math.floor(Math.random() * (populationSize/2))].idx];
-                let p2 = population[indexedFitness[Math.floor(Math.random() * (populationSize/2))].idx];
-                let parent = p1; // 簡易的に上位半分からランダム
-                
-                let child = parent.clone();
-                child.mutate(0.15); // 突然変異率15%
-                nextPopulation.push(child);
-            }
-
-            population = nextPopulation;
-            bestStrategyA = population[0]; // 暫定トップ
         }
-
-        document.getElementById('ga-status').innerText = "完了！";
-        document.getElementById('best-score').innerText = `最高スコア (期待値): ${testEvaluate(bestStrategyA).toFixed(2)}`;
-        exportStrategy('A'); // 自動でテキストエリアに反映
-    }, 50);
-}
-
-// 個体の純粋な強さを固定の相手(B)と100回対戦してテスト評価する関数
-function testEvaluate(strat) {
-    let total = 0;
-    for (let i = 0; i < 100; i++) {
-        total += play10Battles(strat, strategyB);
     }
-    return total / 100;
-}
 
-// --- インポート・エクスポート機能 ---
-function exportStrategy(player) {
-    if (player === 'A') {
-        document.getElementById('json-A').value = JSON.stringify(bestStrategyA);
+    let indexed = fitness.map((f, idx) => ({ idx, f })).sort((a, b) => b.f - a.f);
+    
+    let nextPop = [];
+    nextPop.push(population[indexed[0].idx].clone()); 
+    nextPop.push(population[indexed[1].idx].clone()); 
+
+    while (nextPop.length < populationSize) {
+        let parent = population[indexed[Math.floor(Math.random() * (populationSize / 2))].idx];
+        let child = parent.clone();
+        child.mutate(0.15);
+        nextPop.push(child);
+    }
+
+    population = nextPop;
+    bestStrategyA = population[0];
+    generationCount++;
+
+    document.getElementById('ga-generation').innerText = generationCount;
+    if (generationCount % 5 === 0) {
+        let testDiff = 0;
+        let randomOpp = new Strategy(); 
+        for(let t=0; t<500; t++) {
+            let res = playSimulationBattle(bestStrategyA, randomOpp);
+            testDiff += (res.pA - res.pB);
+        }
+        document.getElementById('best-score').innerText = (testDiff / 50).toFixed(2); 
     }
 }
 
-function importStrategy(player) {
+function toggleEvolutionLoop() {
+    let btn = document.getElementById('loop-btn');
+    if (!isEvolving) {
+        isEvolving = true;
+        btn.innerText = "自動学習を一時停止";
+        btn.classList.add('active');
+        document.getElementById('ga-status').innerText = "自動世代交代中🔥（相手を叩きのめす戦略を構築中）";
+        evolutionTimer = setInterval(() => {
+            for(let i=0; i<5; i++) evolveOneGeneration();
+        }, 50);
+    } else {
+        isEvolving = false;
+        btn.innerText = "自動学習（放置モード）を開始";
+        btn.classList.remove('active');
+        document.getElementById('ga-status').innerText = "停止中";
+        clearInterval(evolutionTimer);
+    }
+}
+
+function exportStrategy() {
+    document.getElementById('json-area').value = JSON.stringify(bestStrategyA);
+}
+function importStrategy(target) {
     try {
-        let jsonStr = document.getElementById(`json-${player}`).value;
-        if (!jsonStr) return;
-        let obj = JSON.parse(jsonStr);
-        
+        let str = document.getElementById('json-area').value;
+        let obj = JSON.parse(str);
         let imported = new Strategy();
         imported.continueThreshold = obj.continueThreshold;
         imported.cardWeights = obj.cardWeights;
 
-        if (player === 'A') {
+        if (target === 'A') {
             bestStrategyA = imported;
-            // プール全体もこれで上書きして再学習のベースにできるようにする
             population = Array.from({length: populationSize}, () => imported.clone());
-            document.getElementById('import-status').innerText = "プレイヤーAに戦略を適用しました(プールも初期化)。";
+            document.getElementById('import-msg').innerText = "プレイヤーAプールに適用完了。";
         } else {
             strategyB = imported;
-            document.getElementById('import-status').innerText = "プレイヤーBに戦略を適用しました。";
+            document.getElementById('import-msg').innerText = "仮想敵Bに適用完了。";
         }
-    } catch (e) {
-        alert("JSONの読み込みに失敗しました。形式を確認してください。");
-    }
+    } catch(e) { alert("JSON読み込み失敗。"); }
 }
 
-function resetPlayerB() {
-    strategyB = new Strategy();
-    document.getElementById('import-status').innerText = "プレイヤーBを初期（ランダム）にリセットしました。";
+// ==========================================
+// 🎮 人間 vs AI モード
+// ==========================================
+let humanGameCount = 0; 
+let totalHumanScore = 0;
+let totalAIScore = 0;
+
+let curHumanHand = [];
+let curAIHand = [];
+let curHumanHistory = [];
+let curAIHistory = [];
+let curHumanWins = 0;
+let curAIWins = 0;
+let curRound = 0; 
+let currentAIOpponent = null;
+
+function addLog(text) {
+    let log = document.getElementById('log');
+    log.innerHTML += text + "<br>";
+    log.scrollTop = log.scrollHeight;
 }
 
-// --- テストマッチ機能 ---
-function testMatch() {
-    let winsA = 0;
-    let winsB = 0;
-    let draws = 0;
-    let totalScoreA = 0;
-    let totalScoreB = 0;
-
-    let abortCount = 0;
-    let fullMatchCount = 0;
-
-    for (let g = 0; g < 1000; g++) {
-        let gameScoreA = 0;
-        for (let b = 0; b < 10; b++) {
-            let res = playBattle(bestStrategyA, strategyB);
-            gameScoreA += res.pointsA;
-            totalScoreB += res.pointsB;
-
-            if (res.pointsA === -1) abortCount++;
-            else fullMatchCount++;
-        }
-        totalScoreA += gameScoreA;
-
-        if (gameScoreA > 0) winsA++;
-        else if (gameScoreA < 0) winsB++;
-        else draws++;
-    }
-
-    let report = `【1000ゲーム(計10000バトル) 対戦結果】\n`;
-    report += `プレイヤーAのゲーム勝敗: ${winsA}勝 - ${winsB}敗 - ${draws}分 (勝率: ${((winsA/1000)*100).toFixed(1)}%)\n`;
-    report += `平均獲得ポイント/ゲーム: A: ${(totalScoreA/1000).toFixed(2)}pt vs B: ${(totalScoreB/1000).toFixed(2)}pt\n`;
-    report += `総バトル中の内訳: 3手目撤退: ${abortCount}回 / 5手完走: ${fullMatchCount}回\n\n`;
+function startHumanGame() {
+    currentAIOpponent = bestStrategyA.clone(); 
+    totalHumanScore = 0;
+    totalAIScore = 0;
+    humanGameCount = 1;
     
-    report += `【現在のプレイヤーAの「3手目終了時」継続確率傾向】\n`;
-    report += ` 3手目時点で 0勝 : ${(bestStrategyA.continueThreshold[0]*100).toFixed(0)}% で継続\n`;
-    report += ` 3手目時点で 1勝 : ${(bestStrategyA.continueThreshold[1]*100).toFixed(0)}% で継続\n`;
-    report += ` 3手目時点で 2勝 : ${(bestStrategyA.continueThreshold[2]*100).toFixed(0)}% で継続\n`;
-    report += ` 3手目時点で 3勝 : ${(bestStrategyA.continueThreshold[3]*100).toFixed(0)}% で継続\n`;
+    document.getElementById('game-ui').style.display = "block";
+    document.getElementById('log').innerHTML = "--- 10バトル勝負（点数差勝負） 開始！ ---<br>";
+    
+    initNextBattle();
+}
 
-    document.getElementById('match-result').innerText = report;
+function initNextBattle() {
+    if (humanGameCount > 10) {
+        document.getElementById('game-ui').style.display = "none";
+        let diff = totalAIScore - totalHumanScore;
+        addLog(`<br><strong>【ゲーム終了】最終結果: あなた ${totalHumanScore} pt vs AI ${totalAIScore} pt</strong>`);
+        if (totalAIScore > totalHumanScore) {
+            addLog(`<span style='color:#e74c3c; font-weight:bold;'>🤖 AIの思惑通り！AIが ${diff} ptの差をつけてあなたを圧倒しました。</span>`);
+        } else if (totalAIScore < totalHumanScore) {
+            addLog(`<span style='color:#2ecc71; font-weight:bold;'>🎉 素晴らしい！AIの妨害を跳ね除け、あなたが ${-diff} pt差で勝ち越しました！</span>`);
+        } else {
+            addLog("同点引き分けです！");
+        }
+        return;
+    }
+
+    document.getElementById('b-num').innerText = humanGameCount;
+    document.getElementById('total-p-score').innerText = totalHumanScore;
+    document.getElementById('total-ai-score').innerText = totalAIScore;
+    
+    let diffText = "";
+    let diffVal = totalAIScore - totalHumanScore;
+    if(diffVal > 0) diffText = `AIが ${diffVal}pt リード`;
+    else if(diffVal < 0) diffText = `あなたが ${-diffVal}pt リード`;
+    else diffText = `タイスコア`;
+    document.getElementById('score-diff').innerText = diffText;
+
+    let pDeck = Math.floor(Math.random() * 3);
+    let aiDeck = Math.floor(Math.random() * 3);
+    
+    curHumanHand = [0, 1, 2, pDeck, pDeck];
+    curAIHand = [0, 1, 2, aiDeck, aiDeck];
+    curHumanHistory = [];
+    curAIHistory = [];
+    curHumanWins = 0;
+    curAIWins = 0;
+    curRound = 0;
+
+    addLog(`<br>🔵 【バトル ${humanGameCount}】 カード配布（AIはあなたの裏をかこうとしています）`);
+    document.getElementById('battle-status').innerText = "";
+    
+    updateHumanHandUI();
+    startRound();
+}
+
+function updateHumanHandUI() {
+    let handStr = curHumanHand.map(h => HAND_NAMES[h]).join(", ");
+    document.getElementById('p-hand').innerText = handStr;
+    document.getElementById('p-wins').innerText = curHumanWins;
+    document.getElementById('ai-wins').innerText = curAIWins;
+
+    let btnContainer = document.getElementById('card-buttons');
+    btnContainer.innerHTML = "";
+    
+    let uniqueHands = Array.from(new Set(curHumanHand));
+    uniqueHands.forEach(h => {
+        let count = curHumanHand.filter(x => x === h).length;
+        let b = document.createElement('button');
+        b.className = "card-btn";
+        b.innerText = `${HAND_NAMES[h]} (${count}枚)`;
+        b.onclick = () => playHumanTurn(h);
+        btnContainer.appendChild(b);
+    });
+}
+
+function startRound() {
+    document.getElementById('abort-phase').style.display = "none";
+    
+    if (curRound === 3) {
+        // 3手目終了時、AIの継続判断
+        let aiWillContinue = Math.random() < currentAIOpponent.continueThreshold[curAIWins];
+        
+        addLog(`📢 3手目終了。点数差を意識したAIのジャッジ...`);
+        if (!aiWillContinue) {
+            addLog(`🤖 AI「ここで引くのが、最終的な点数差で優位を保つ（または被害を抑える）最善手です。撤退します」`);
+            endBattleByAbort("AIが撤退を選択");
+            return;
+        } else {
+            addLog(`🤖 AI「このまま勝負した方が点数差を開けると判断。続行します」`);
+            document.getElementById('action-phase').style.display = "none";
+            document.getElementById('abort-phase').style.display = "block";
+            return;
+        }
+    }
+
+    if (curRound >= 5) {
+        endBattleByFullMatch();
+        return;
+    }
+
+    document.getElementById('action-phase').style.display = "block";
+}
+
+function playHumanTurn(humanChoice) {
+    document.getElementById('action-phase').style.display = "none";
+
+    let aiChoice = chooseAICard(currentAIOpponent, curAIHand, curHumanHistory);
+
+    curHumanHand.splice(curHumanHand.indexOf(humanChoice), 1);
+    curAIHand.splice(curAIHand.indexOf(aiChoice), 1);
+
+    curHumanHistory.push(humanChoice);
+    curAIHistory.push(aiChoice);
+
+    let res = judge(humanChoice, aiChoice);
+    let roundResultText = `第${curRound+1}手: あなた[${HAND_NAMES[humanChoice]}] vs AI[${HAND_NAMES[aiChoice]}] -> `;
+    
+    if (res === 1) {
+        curHumanWins++;
+        roundResultText += "あなたの勝ち！";
+    } else if (res === -1) {
+        curAIWins++;
+        roundResultText += "AIの勝ち！";
+    } else {
+        roundResultText += "あいこ";
+    }
+    addLog(roundResultText);
+
+    curRound++;
+    updateHumanHandUI();
+    startRound();
+}
+
+function humanDecideAbort(willContinue) {
+    if (willContinue) {
+        addLog(`🔥 あなた「引くわけにはいかない、続行！」`);
+        document.getElementById('abort-phase').style.display = "none";
+        document.getElementById('action-phase').style.display = "block";
+        startRound();
+    } else {
+        addLog(`🏳️ あなた「ここは安全第一…」撤退を選択。`);
+        endBattleByAbort("あなたが撤退を選択");
+    }
+}
+
+function endBattleByAbort(reason) {
+    addLog(`❌ 撤退成立 (${reason})。お互いに -1pt (点数差は変わりません)`);
+    totalHumanScore -= 1;
+    totalAIScore -= 1;
+    humanGameCount++;
+    setTimeout(initNextBattle, 1500);
+}
+
+function endBattleByFullMatch() {
+    addLog(`🏁 5枚出し切りました！`);
+    if (curHumanWins > curAIWins) {
+        addLog(`👑 あなたの勝ち！ あなた:+2pt / AI:-2pt (差が4点縮まる/開く)`);
+        totalHumanScore += 2; totalAIScore -= 2;
+    } else if (curAIWins > curHumanWins) {
+        addLog(`🤖 AIの勝ち！ あなた:-2pt / AI:+2pt (差が4点開く/縮まる)`);
+        totalHumanScore -= 2; totalAIScore += 2;
+    } else {
+        addLog(`引き分け (点数差は変わりません)`);
+    }
+    humanGameCount++;
+    setTimeout(initNextBattle, 1500);
 }
 </script>
 </body>

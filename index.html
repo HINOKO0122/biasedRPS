@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>偏りじゃんけん - 遺伝的アルゴリズム学習シミュレーター</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #f5f5f5; color: #333; }
+        h1, h2 { color: #2c3e50; }
+        .container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .panel { flex: 1; min-width: 300px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        button { background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 14px; margin: 5px 0; }
+        button:hover { background: #2980b9; }
+        textarea { width: 100%; height: 100px; font-family: monospace; font-size: 12px; box-sizing: border-box; margin-top: 5px; }
+        .status { font-weight: bold; margin-top: 10px; color: #e67e22; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+    </style>
+</head>
+<body>
+
+    <h1>偏りじゃんけん AI学習シミュレーター</h1>
+    <p>遺伝的アルゴリズム（GA）を用いて、「偏りじゃんけん」の最適な戦略を学習させます。</p>
+
+    <div class="container">
+        <div class="panel">
+            <h2>シミュレーション制御</h2>
+            <p>世代交代を繰り返してAIを賢くします。</p>
+            <label>世代数: <input type="number" id="generations" value="50" min="1" style="width:60px;"></label><br><br>
+            <button onclick="runEvolution()">学習を実行（世代交代）</button>
+            <div id="ga-status" class="status">未実行</div>
+            
+            <h3>現在の最高適応度（勝率ベースのスコア）</h3>
+            <div id="best-score">-</div>
+        </div>
+
+        <div class="panel">
+            <h2>戦略のインポート / エクスポート</h2>
+            
+            <h3>プレイヤーA (学習・エクスポート用)</h3>
+            <button onclick="exportStrategy('A')">現在の最強戦略をエクスポート</button>
+            <textarea id="json-A" placeholder="ここに戦略データ(JSON)が出力されます"></textarea>
+            <button onclick="importStrategy('A')">プレイヤーAにインポート</button>
+
+            <h3>プレイヤーB (対戦・検証用)</h3>
+            <textarea id="json-B" placeholder="ここにJSONをペーストしてインポートできます"></textarea>
+            <button onclick="importStrategy('B')">プレイヤーBにインポート</button>
+            <button onclick="resetPlayerB()">プレイヤーBを初期化（ランダム）</button>
+            <div id="import-status" style="color: green; margin-top: 5px;"></div>
+        </div>
+    </div>
+
+    <div class="panel" style="margin-top:20px;">
+        <h2>現在のプレイヤーA vs プレイヤーB テストマッチ</h2>
+        <p>現在のAの最強個体と、現在のB（インポートした戦略 or ランダム）を1000ゲーム（1ゲーム=10バトル）対戦させて実力を測ります。</p>
+        <button onclick="testMatch()">テストマッチを実行</button>
+        <div id="match-result" style="margin-top: 10px; white-space: pre-line; font-family: monospace;"></div>
+    </div>
+
+<script>
+// --- ゲームの基本定義 ---
+const HANDS = [0, 1, 2]; // 0: ぐー, 1: ちょき, 2: ぱー
+const HAND_NAMES = ["グー", "チョキ", "パー"];
+
+// 勝敗判定: 1=win, -1=lose, 0=draw (自分視点)
+function judge(h1, h2) {
+    if (h1 === h2) return 0;
+    if ((h1 === 0 && h2 === 1) || (h1 === 1 && h2 === 2) || (h1 === 2 && h2 === 0)) return 1;
+    return -1;
+}
+
+// --- AI（遺伝子）のクラス設計 ---
+class Strategy {
+    constructor() {
+        // 遺伝子1: 3手目終了時、自分の勝利数(0,1,2,3)に応じた「継続確率」(0.0〜1.0)
+        // 初期値はすべて50%
+        this.continueThreshold = [0.5, 0.5, 0.5, 0.5]; 
+
+        // 遺伝子2: カードを出す時の重み（手札にあるもののうち、どれを優先するか）
+        // 状況ごとに「グー、チョキ、パー」の出しやすさの重みを持つ
+        // 状況の簡略化：[直前の相手の手(3種 + 最初は3)][自分の残り手札の中で一番多い枚数(1,2,3)] = 12状態
+        this.cardWeights = {};
+        for (let opLast = 0; opLast <= 3; opLast++) { // 3は「まだ相手が出していない」
+            this.cardWeights[opLast] = {};
+            for (let maxCount = 1; maxCount <= 3; maxCount++) {
+                this.cardWeights[opLast][maxCount] = [1.0, 1.0, 1.0]; // 初期重み
+            }
+        }
+    }
+
+    // クローン（子孫を作る用）
+    clone() {
+        let child = new Strategy();
+        child.continueThreshold = [...this.continueThreshold];
+        for (let o in this.cardWeights) {
+            for (let m in this.cardWeights[o]) {
+                child.cardWeights[o][m] = [...this.cardWeights[o][m]];
+            }
+        }
+        return child;
+    }
+
+    // 突然変異
+    mutate(rate = 0.1) {
+        // 継続確率の変異
+        for (let i = 0; i < 4; i++) {
+            if (Math.random() < rate) this.continueThreshold[i] = Math.min(1, Math.max(0, this.continueThreshold[i] + (Math.random() - 0.5) * 0.3));
+        }
+        // カード重みの変異
+        for (let o in this.cardWeights) {
+            for (let m in this.cardWeights[o]) {
+                if (Math.random() < rate) {
+                    for (let h = 0; h < 3; h++) {
+                        this.cardWeights[o][m][h] = Math.max(0.1, this.cardWeights[o][m][h] + (Math.random() - 0.5) * 0.5);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- シミュレーション管理環境 ---
+let populationSize = 40;
+let population = Array.from({length: populationSize}, () => new Strategy());
+let bestStrategyA = population[0];
+let strategyB = new Strategy(); // 初期はランダムな戦略
+
+// 1バトルの実行
+function playBattle(stratA, stratB) {
+    // デッキ選択（ランダムに2枚追加される手を決める）
+    let deckTypeA = Math.floor(Math.random() * 3);
+    let deckTypeB = Math.floor(Math.random() * 3);
+
+    let handA = [0, 1, 2]; handA.push(deckTypeA, deckTypeA);
+    let handB = [0, 1, 2]; handB.push(deckTypeB, deckTypeB);
+
+    let historyA = [];
+    let historyB = [];
+    let winsA = 0;
+    let winsB = 0;
+
+    // 5回勝負
+    for (let round = 0; round < 5; round++) {
+        // 3手目終了後の継続判断
+        if (round === 3) {
+            let actA = Math.random() < stratA.continueThreshold[winsA]; // true=継続
+            let actB = Math.random() < stratB.continueThreshold[winsB]; // true=継続
+            if (!actA || !actB) {
+                return { pointsA: -1, pointsB: -1 }; // どちらかがやめたら両方-1
+            }
+        }
+
+        // カードの選択
+        let cardA = chooseCard(stratA, handA, historyB);
+        let cardB = chooseCard(stratB, handB, historyA);
+
+        // 手札から消費
+        handA.splice(handA.indexOf(cardA), 1);
+        handB.splice(handB.indexOf(cardB), 1);
+
+        historyA.push(cardA);
+        historyB.push(cardB);
+
+        let res = judge(cardA, cardB);
+        if (res === 1) winsA++;
+        if (res === -1) winsB++;
+    }
+
+    // 5枚出し切った場合のポイント計算
+    if (winsA > winsB) return { pointsA: 2, pointsB: -2 };
+    if (winsB > winsA) return { pointsA: -2, pointsB: 2 };
+    return { pointsA: 0, pointsB: 0 };
+}
+
+// 戦略と手札に基づいてカードを選ぶヘルパー
+function chooseCard(strat, myHand, opHistory) {
+    let opLast = opHistory.length === 0 ? 3 : opHistory[opHistory.length - 1];
+    
+    // 手札の偏り（最大枚数）をカウント
+    let counts = [0, 0, 0];
+    myHand.forEach(h => counts[h]++);
+    let maxCount = Math.max(...counts);
+
+    let weights = strat.cardWeights[opLast][maxCount];
+    
+    // 現在手札にあるカードだけの有効な重みを計算
+    let validWeights = [0, 0, 0];
+    let totalWeight = 0;
+    for(let h of myHand) {
+        validWeights[h] += weights[h];
+    }
+    totalWeight = validWeights.reduce((a,b)=>a+b, 0);
+
+    // 万が一重みが0の場合は手札からランダム
+    if (totalWeight === 0) return myHand[Math.floor(Math.random() * myHand.length)];
+
+    let rand = Math.random() * totalWeight;
+    let sum = 0;
+    for (let i = 0; i < 3; i++) {
+        sum += validWeights[i];
+        if (rand <= sum) return i;
+    }
+    return myHand[0];
+}
+
+// 1ゲーム（10バトル）を対戦させて、Aの最終獲得ポイントを返す
+function play10Battles(stratA, stratB) {
+    let totalA = 0;
+    for (let b = 0; b < 10; b++) {
+        let res = playBattle(stratA, stratB);
+        totalA += res.pointsA;
+    }
+    return totalA;
+}
+
+// --- 遺伝的アルゴリズム（GA）の実行 ---
+function runEvolution() {
+    let gens = parseInt(document.getElementById('generations').value);
+    document.getElementById('ga-status').innerText = "計算中...";
+
+    setTimeout(() => {
+        for (let g = 0; g < gens; g++) {
+            let fitness = new Array(populationSize).fill(0);
+
+            // 総当たり、またはランダムな相手（現在のプール内＋相手の固定戦略B）と対戦して評価
+            for (let i = 0; i < populationSize; i++) {
+                // 1個体あたり、プール内の他の個体やBと複数回対戦して実力を平均化
+                for (let k = 0; k < 10; k++) {
+                    let opponent = (Math.random() < 0.3) ? strategyB : population[Math.floor(Math.random() * populationSize)];
+                    fitness[i] += play10Battles(population[i], opponent);
+                }
+            }
+
+            // 成績順にソート
+            let indexedFitness = fitness.map((f, idx) => ({ idx, f }));
+            indexedFitness.sort((a, b) => b.f - a.f);
+
+            // 次世代のプール作成 (エリート選択 + ルーレット選択)
+            let nextPopulation = [];
+            
+            // 上位2個体はそのまま残す（エリート保存）
+            nextPopulation.push(population[indexedFitness[0].idx].clone());
+            nextPopulation.push(population[indexedFitness[1].idx].clone());
+
+            // 残りを次世代で埋める
+            while (nextPopulation.length < populationSize) {
+                // 簡易的なトーナメント選択（ランダムに2つ選んで強い方を親にする）
+                let p1 = population[indexedFitness[Math.floor(Math.random() * (populationSize/2))].idx];
+                let p2 = population[indexedFitness[Math.floor(Math.random() * (populationSize/2))].idx];
+                let parent = p1; // 簡易的に上位半分からランダム
+                
+                let child = parent.clone();
+                child.mutate(0.15); // 突然変異率15%
+                nextPopulation.push(child);
+            }
+
+            population = nextPopulation;
+            bestStrategyA = population[0]; // 暫定トップ
+        }
+
+        document.getElementById('ga-status').innerText = "完了！";
+        document.getElementById('best-score').innerText = `最高スコア (期待値): ${testEvaluate(bestStrategyA).toFixed(2)}`;
+        exportStrategy('A'); // 自動でテキストエリアに反映
+    }, 50);
+}
+
+// 個体の純粋な強さを固定の相手(B)と100回対戦してテスト評価する関数
+function testEvaluate(strat) {
+    let total = 0;
+    for (let i = 0; i < 100; i++) {
+        total += play10Battles(strat, strategyB);
+    }
+    return total / 100;
+}
+
+// --- インポート・エクスポート機能 ---
+function exportStrategy(player) {
+    if (player === 'A') {
+        document.getElementById('json-A').value = JSON.stringify(bestStrategyA);
+    }
+}
+
+function importStrategy(player) {
+    try {
+        let jsonStr = document.getElementById(`json-${player}`).value;
+        if (!jsonStr) return;
+        let obj = JSON.parse(jsonStr);
+        
+        let imported = new Strategy();
+        imported.continueThreshold = obj.continueThreshold;
+        imported.cardWeights = obj.cardWeights;
+
+        if (player === 'A') {
+            bestStrategyA = imported;
+            // プール全体もこれで上書きして再学習のベースにできるようにする
+            population = Array.from({length: populationSize}, () => imported.clone());
+            document.getElementById('import-status').innerText = "プレイヤーAに戦略を適用しました(プールも初期化)。";
+        } else {
+            strategyB = imported;
+            document.getElementById('import-status').innerText = "プレイヤーBに戦略を適用しました。";
+        }
+    } catch (e) {
+        alert("JSONの読み込みに失敗しました。形式を確認してください。");
+    }
+}
+
+function resetPlayerB() {
+    strategyB = new Strategy();
+    document.getElementById('import-status').innerText = "プレイヤーBを初期（ランダム）にリセットしました。";
+}
+
+// --- テストマッチ機能 ---
+function testMatch() {
+    let winsA = 0;
+    let winsB = 0;
+    let draws = 0;
+    let totalScoreA = 0;
+    let totalScoreB = 0;
+
+    let abortCount = 0;
+    let fullMatchCount = 0;
+
+    for (let g = 0; g < 1000; g++) {
+        let gameScoreA = 0;
+        for (let b = 0; b < 10; b++) {
+            let res = playBattle(bestStrategyA, strategyB);
+            gameScoreA += res.pointsA;
+            totalScoreB += res.pointsB;
+
+            if (res.pointsA === -1) abortCount++;
+            else fullMatchCount++;
+        }
+        totalScoreA += gameScoreA;
+
+        if (gameScoreA > 0) winsA++;
+        else if (gameScoreA < 0) winsB++;
+        else draws++;
+    }
+
+    let report = `【1000ゲーム(計10000バトル) 対戦結果】\n`;
+    report += `プレイヤーAのゲーム勝敗: ${winsA}勝 - ${winsB}敗 - ${draws}分 (勝率: ${((winsA/1000)*100).toFixed(1)}%)\n`;
+    report += `平均獲得ポイント/ゲーム: A: ${(totalScoreA/1000).toFixed(2)}pt vs B: ${(totalScoreB/1000).toFixed(2)}pt\n`;
+    report += `総バトル中の内訳: 3手目撤退: ${abortCount}回 / 5手完走: ${fullMatchCount}回\n\n`;
+    
+    report += `【現在のプレイヤーAの「3手目終了時」継続確率傾向】\n`;
+    report += ` 3手目時点で 0勝 : ${(bestStrategyA.continueThreshold[0]*100).toFixed(0)}% で継続\n`;
+    report += ` 3手目時点で 1勝 : ${(bestStrategyA.continueThreshold[1]*100).toFixed(0)}% で継続\n`;
+    report += ` 3手目時点で 2勝 : ${(bestStrategyA.continueThreshold[2]*100).toFixed(0)}% で継続\n`;
+    report += ` 3手目時点で 3勝 : ${(bestStrategyA.continueThreshold[3]*100).toFixed(0)}% で継続\n`;
+
+    document.getElementById('match-result').innerText = report;
+}
+</script>
+</body>
+</html>

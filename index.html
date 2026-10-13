@@ -160,10 +160,18 @@ function playSimulationBattle(stratA, stratB) {
 
     for (let round = 0; round < 5; round++) {
         if (round === 3) {
-            if (Math.random() > stratA.continueThreshold[winsA] || Math.random() > stratB.continueThreshold[winsB]) {
-                return { pA: -1, pB: -1 };
-            }
-        }
+    let aCont = Math.random() <= stratA.continueThreshold[winsA];
+    let bCont = Math.random() <= stratB.continueThreshold[winsB];
+    
+    if (!aCont && !bCont) {
+        return { pA: 0, pB: 0 };       // お互い撤退：増減なし
+    } else if (!aCont && bCont) {
+        return { pA: -1, pB: 0 };      // Aだけ撤退：Aが-1pt
+    } else if (aCont && !bCont) {
+        return { pA: 0, pB: -1 };      // Bだけ撤退：Bが-1pt
+    }
+    // 両者継続の場合はそのまま4手目へ進む
+}
         let cA = chooseAICard(stratA, handA, histB);
         let cB = chooseAICard(stratB, handB, histA);
         handA.splice(handA.indexOf(cA), 1);
@@ -409,6 +417,30 @@ function startRound() {
     document.getElementById('action-phase').style.display = "block";
 }
 
+function promptHumanWhenAIAborts() {
+    // 既存の abort-phase のテキストやボタンを流用、または専用の分岐を作る
+    document.getElementById('action-phase').style.display = "none";
+    let abortPhase = document.getElementById('abort-phase');
+    abortPhase.style.display = "block";
+    abortPhase.innerHTML = `
+        <p class="highlight">⚠️ AIが【撤退】を選びました。あなたも撤退して「お互い増減なし」にするか、試合を続行しますか？</p>
+        <button onclick="humanDecideAfterAIAbort(true)">🔥 自分は試合を続ける (AIのみ-1pt)</button>
+        <button onclick="humanDecideAfterAIAbort(false)" style="background:#e74c3c;">🏳️ 自分も撤退する (お互い0pt)</button>
+    `;
+}
+
+function humanDecideAfterAIAbort(willContinue) {
+    document.getElementById('abort-phase').style.display = "none";
+    // 復元用のHTMLを後で戻せるようにするか、簡易的に処理する
+    if (willContinue) {
+        addLog(`🔥 あなた「AIが引いたなら、こちらは続行して優位に立つ！」（AIのみ撤退）`);
+        endBattleByAbort('ai', 'AIのみ撤退');
+    } else {
+        addLog(`🏳️ あなた「じゃあ私も撤退で」お互い撤退成立。`);
+        endBattleByAbort('both', 'お互い撤退');
+    }
+}
+
 function playHumanTurn(humanChoice) {
     document.getElementById('action-phase').style.display = "none";
 
@@ -451,10 +483,17 @@ function humanDecideAbort(willContinue) {
     }
 }
 
-function endBattleByAbort(reason) {
-    addLog(`❌ 撤退成立 (${reason})。お互いに -1pt (点数差は変わりません)`);
-    totalHumanScore -= 1;
-    totalAIScore -= 1;
+function endBattleByAbort(who, reason) {
+    if (who === 'both') {
+        addLog(`❌ お互い撤退 (${reason})。加点・減点なし (0pt)`);
+        // ポイント変動なし
+    } else if (who === 'human') {
+        addLog(`❌ あなたが撤退 (${reason})。あなたのみ -1pt`);
+        totalHumanScore -= 1;
+    } else if (who === 'ai') {
+        addLog(`❌ AIが撤退 (${reason})。AIのみ -1pt`);
+        totalAIScore -= 1;
+    }
     humanGameCount++;
     setTimeout(initNextBattle, 1500);
 }
